@@ -21,47 +21,33 @@ export default function Tomato() {
     }, 0);
 
 
-    // Bottom sand fills upward (y rises, height grows; bottom edge stays fixed at 282)
+    // Bottom sand fills as a cone — apex rises from bottom toward neck
     tl.to(bottomSandRef.current, {
-      attr: { y: 152, height: 280 },
+      attr: { points: "100,152 -300,290 500,290" },
       duration: 5,
       ease: 'power1.inOut',
-      delay: 1,
+      delay: 0.6,
     }, 0);
 
 
-
-
     tl.to(sandStreamRef.current, {
-      attr: { y: 151, height: 128, },
+      attr: { y: 149, height: 130, },
       duration: 1,
       ease: 'power1.inOut',
     }, 0);
 
     tl.to(sandStreamRef.current, {
-      attr: { width: 6 },
-      duration: 4,
+      attr: { width: 8 },
+      duration: 5,
       ease: 'power1.inOut',
     }, 0);
 
-    // tl.add(() => {
-    //   gsap.timeline()
-    //     .to(wrapperRef.current, { x: -12, duration: 0.07 })
-    //     .to(wrapperRef.current, { x: 12,  duration: 0.07 })
-    //     .to(wrapperRef.current, { x: -10, duration: 0.07 })
-    //     .to(wrapperRef.current, { x: 10,  duration: 0.07 })
-    //     .to(wrapperRef.current, { x: -7,  duration: 0.07 })
-    //     .to(wrapperRef.current, { x: 7,   duration: 0.07 })
-    //     .to(wrapperRef.current, { x: -4,  duration: 0.07 })
-    //     .to(wrapperRef.current, { x: 4,   duration: 0.07 })
-    //     .to(wrapperRef.current, { x: 0,   duration: 0.07 });
-    // });
   }, []);
 
   // Top: wide rim (y=20) → bulges wide at y≈80 → narrows to neck (y=148)
   // Bottom: mirror — neck (y=152) → bulges wide at y≈220 → wide rim (y=280)
-  const topPath = "M 62 20 L 138 20 Q 188 45 184 80 Q 176 133 110 148 L 90 148 Q 24 133 16 80 Q 12 45 62 20 Z";
-  const bottomPath = "M 90 152 L 110 152 Q 176 167 184 220 Q 188 255 138 280 L 62 280 Q 12 255 16 220 Q 24 167 90 152 Z";
+  const topPath = "M 62 20 L 138 20 Q 188 45 184 80 Q 176 133 120 148 L 80 148 Q 24 133 16 80 Q 12 45 62 20 Z";
+  const bottomPath = "M 80 152 L 120 152 Q 176 167 184 220 Q 188 255 138 280 L 62 280 Q 12 255 16 220 Q 24 167 80 152 Z";
 
   return (
     <div ref={wrapperRef} className="tomato-wrapper">
@@ -80,9 +66,9 @@ export default function Tomato() {
           <rect ref={topSandRef} x="0" y="0" width="200" height="148" fill="#d4a843" />
         </g>
 
-        {/* Bottom sand — rect clipped to bottom bulb; grows upward from y=280 */}
+        {/* Bottom sand — cone clipped to bottom bulb; apex rises from bottom */}
         <g clipPath="url(#bottom-glass-clip)">
-          <rect ref={bottomSandRef} x="0" y="280" width="200" height="0" fill="#d4a843" />
+          <polygon ref={bottomSandRef} points="100,278 97,281 103,281" fill="#d4a843" />
         </g>
 
         {/* Thin sand stream through the neck */}
