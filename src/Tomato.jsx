@@ -8,16 +8,12 @@ const MAX_GRAIN_RADIUS = 1;
 const GRAIN_COLORS = ['#d4a843', '#c89a3a', '#e0b452', '#cfa23f', '#ddd'];
 const NECK_X = 100;
 
-// Interior half-width of the top bulb at y.
-// Rim (y=20): 38 → bulge (y=80): 84 → neck (y=148): 20
 function topBulbHalfWidth(y) {
-return 138;
+  return 88;
 }
 
-// Interior half-width of the bottom bulb at y.
-// Neck (y=152): 20 → bulge (y=220): 84 → rim (y=280): 38
 function bottomBulbHalfWidth(y) {
-  return 138;
+  return 88;
 }
 
 // Uniformly scatter grains throughout a container's interior. Used for the top
@@ -131,8 +127,8 @@ export default function Tomato() {
   // Positions computed once: top pile is the starting state, bottom pile is
   // where each grain lands. Same sandpile algorithm, different container geometry.
   const { topPositions, bottomPositions } = useMemo(() => ({
-    topPositions: fillContainer(20, 148, topBulbHalfWidth),
-    bottomPositions: buildConePile(282, 152, bottomBulbHalfWidth),
+    topPositions: fillContainer(10, 150, topBulbHalfWidth),
+    bottomPositions: buildConePile(290, 150, bottomBulbHalfWidth),
   }), []);
 
   useEffect(() => {
@@ -168,7 +164,7 @@ export default function Tomato() {
 
       const dx = top.finalX - NECK_X;
       const dy = 150 - top.finalY;
-      const topFallDur = 0.08 + 0.3 * Math.sqrt(dx * dx + dy * dy) / Math.sqrt(136 * 136 + 130 * 130);
+      const topFallDur = 0.08 + 0.3 * Math.sqrt(dx * dx + dy * dy) / Math.sqrt(88 * 88 + 140 * 140);
 
       // Gravity compression: grains buried deeper get pushed further outward as
       // weight builds above them. depthFraction=1 for the first grain (deepest),
@@ -192,8 +188,9 @@ export default function Tomato() {
     return () => { tl.kill(); };
   }, [topPositions, bottomPositions, minutes, started]);
 
-  const topPath = "M 62 20 L 138 20 Q 188 45 184 80 Q 176 133 120 148 L 80 148 Q 24 133 16 80 Q 12 45 62 20 Z";
-  const bottomPath = "M 80 152 L 120 152 Q 176 167 184 220 Q 188 255 138 280 L 62 280 Q 12 255 16 220 Q 24 167 80 152 Z";
+  // Rounded dome top, smooth bezier taper to narrow neck — no flat edges, no gap
+  const topPath = "M 100 10 C 155 10, 190 45, 190 82 C 190 120, 115 148, 108 150 L 92 150 C 85 148, 10 120, 10 82 C 10 45, 45 10, 100 10 Z";
+  const bottomPath = "M 92 150 C 85 152, 10 180, 10 218 C 10 255, 45 290, 100 290 C 155 290, 190 255, 190 218 C 190 180, 115 152, 108 150 Z";
 
   return (
     <div className="tomato-wrapper">
@@ -211,7 +208,6 @@ export default function Tomato() {
               stay visible while passing through the constriction. */}
           <clipPath id="glass-interior-clip">
             <path d={topPath} />
-            <rect x="80" y="148" width="40" height="4" />
             <path d={bottomPath} />
           </clipPath>
         </defs>
@@ -232,19 +228,15 @@ export default function Tomato() {
         </g>
 
         {/* Top glass bulb */}
-        <path d={topPath} fill="rgba(180,220,255,0.10)" stroke="#888" strokeWidth="2.5" />
+        <path d={topPath} fill="rgba(180,220,255,0.10)" stroke="#aaa" strokeWidth="1.5" />
 
         {/* Bottom glass bulb */}
-        <path d={bottomPath} fill="rgba(180,220,255,0.10)" stroke="#888" strokeWidth="2.5" />
+        <path d={bottomPath} fill="rgba(180,220,255,0.10)" stroke="#aaa" strokeWidth="1.5" />
 
-        {/* Rim lines */}
-        <line x1="60" y1="20"  x2="140" y2="20"  stroke="#888" strokeWidth="3" strokeLinecap="round" />
-        <line x1="60" y1="280" x2="140" y2="280" stroke="#888" strokeWidth="3" strokeLinecap="round" />
-
-        {/* Glass shine highlights */}
-        <path d="M 52 36 Q 24 72 20 108 Q 17 132 38 147"
-              fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="9" strokeLinecap="round" />
-        <path d="M 48 158 Q 22 190 18 222 Q 15 252 42 272"
+        {/* Glass shine highlights — follow new left-edge curves */}
+        <path d="M 42 22 Q 14 55 12 88 Q 10 122 34 148"
+              fill="none" stroke="rgba(255,255,255,0.38)" strokeWidth="9" strokeLinecap="round" />
+        <path d="M 34 152 Q 10 182 12 218 Q 14 252 40 278"
               fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="8" strokeLinecap="round" />
       </svg>
     </div>
