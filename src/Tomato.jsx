@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import './Tomato.css';
 
-const GRAIN_COUNT = 71090;
+const GRAIN_COUNT = 91090;
 const MIN_GRAIN_RADIUS = 0.05;
 const MAX_GRAIN_RADIUS = 1;
-const GRAIN_COLORS = ['#d4a843', '#c89a3a', '#e0b452', '#cfa23f', '#ddd', '#444', '#ccf'];
+const GRAIN_COLORS = ['#d4a843', '#c89a3a', '#e0b452', '#cfa23f', '#ddd'];
 const NECK_X = 100;
 
 // Interior half-width of the top bulb at y.
@@ -36,6 +36,44 @@ function fillContainer(minY, maxY, halfWidthFn) {
     });
   }
   grains.sort((a, b) => b.finalY - a.finalY);
+  return grains;
+}
+
+// Builds a conical sandpile from center-floor upward. Grains are positioned
+// within a cone (steeper than angle-of-repose so the triangular cross-section
+// reads as 3-D) and ordered so index 0 lands first at the center floor,
+// growing outward and upward until the full cone is formed.
+function buildConePile(floorY, neckY, halfWidthFn) {
+  const grains = [];
+  const centerX = NECK_X;
+  const slope = 0.1;          // y-rise per x-unit: larger = narrower/steeper cone
+  const peakY = neckY + 3;   // cone tip just below the neck opening
+  const coneH = floorY - peakY;
+
+  for (let i = 0; i < GRAIN_COUNT; i++) {
+    // sqrt gives area-uniform density (more samples toward wide base)
+    const finalY = peakY + Math.sqrt(Math.random()) * coneH;
+    const coneHalfW = (finalY - peakY) / slope;
+    const glassHalfW = Math.max(2, halfWidthFn(finalY) - 2);
+    const halfW = Math.min(coneHalfW, glassHalfW);
+    const finalX = centerX + (Math.random() * 2 - 1) * halfW;
+
+    grains.push({
+      finalX,
+      finalY,
+      radius: MIN_GRAIN_RADIUS + Math.random() * (MAX_GRAIN_RADIUS - MIN_GRAIN_RADIUS),
+    });
+  }
+
+  // D(x,y) = (floorY−y) + |x−center|×slope: the "cone wavefront distance."
+  // Sorting ascending means any prefix of grains forms a V-shaped cone boundary,
+  // so the pile visibly grows outward and upward as a cone, not a flat box.
+  grains.sort((a, b) => {
+    const da = (floorY - a.finalY) + Math.abs(a.finalX - centerX) * slope;
+    const db = (floorY - b.finalY) + Math.abs(b.finalX - centerX) * slope;
+    return da - db;
+  });
+
   return grains;
 }
 
@@ -93,7 +131,7 @@ export default function Tomato() {
   // where each grain lands. Same sandpile algorithm, different container geometry.
   const { topPositions, bottomPositions } = useMemo(() => ({
     topPositions: fillContainer(20, 148, topBulbHalfWidth),
-    bottomPositions: fillContainer(152, 282, bottomBulbHalfWidth),
+    bottomPositions: buildConePile(282, 152, bottomBulbHalfWidth),
   }), []);
 
   useEffect(() => {
@@ -129,12 +167,21 @@ export default function Tomato() {
 
       const topFallDur = 0.08 + 0.3 * (150 - top.finalY) / 130;
 
+      // Gravity compression: grains buried deeper get pushed further outward as
+      // weight builds above them. depthFraction=1 for the first grain (deepest),
+      // 0 for the last (surface). compressionDur fills the rest of the timer so
+      // the pile visibly widens throughout the animation, not just at the end.
+      const depthFraction = 1 - i / (GRAIN_COUNT - 1);
+      const compressedX = bottom.finalX + (bottom.finalX - NECK_X) * 2.75 * depthFraction;
+      const compressionDur = Math.max(0.2, totalDuration - startTime - topFallDur - grainMidDur - grainDropDur - grainLandDur);
+
       const grainTl = gsap.timeline();
       grainTl
         .to(el, { attr: { cx: neckX, cy: 150 }, duration: topFallDur, ease: 'power2.in' })
         .to(el, { attr: { cx: midX, cy: midY + 50 }, duration: grainMidDur, ease: 'power1.in' })
         .to(el, { attr: { cx: bottom.finalX, cy: bottom.finalY - 2 }, duration: grainDropDur, ease: 'power2.in' })
-        .to(el, { attr: { cy: bottom.finalY - 4}, duration: grainLandDur, ease: 'bounce.out' });
+        .to(el, { attr: { cy: bottom.finalY - 4}, duration: grainLandDur, ease: 'bounce.out' })
+        .to(el, { attr: { cx: compressedX }, duration: compressionDur, ease: 'power2.out' });
 
       tl.add(grainTl, startTime);
     });
