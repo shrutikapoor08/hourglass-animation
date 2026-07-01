@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import './Tomato.css';
 
@@ -7,7 +7,6 @@ const MIN_GRAIN_RADIUS = 0.05;
 const MAX_GRAIN_RADIUS = 1;
 const GRAIN_COLORS = ['#d4a843', '#c89a3a', '#e0b452', '#cfa23f', '#ddd', '#444', '#ccf'];
 const NECK_X = 100;
-const TOTAL_DURATION = 7;
 
 // Interior half-width of the top bulb at y.
 // Rim (y=20): 38 → bulge (y=80): 84 → neck (y=148): 20
@@ -87,6 +86,8 @@ function buildContainerPile(floorY, halfWidthFn) {
 
 export default function Tomato() {
   const grainRefs = useRef([]);
+  const [minutes, setMinutes] = useState(5);
+  const [started, setStarted] = useState(false);
 
   // Positions computed once: top pile is the starting state, bottom pile is
   // where each grain lands. Same sandpile algorithm, different container geometry.
@@ -96,11 +97,26 @@ export default function Tomato() {
   }), []);
 
   useEffect(() => {
-    const tl = gsap.timeline({ delay: 0.5 });
-    const fallSpan = TOTAL_DURATION - 0.6;
+    // Always reset grains to the top starting positions.
+    topPositions.forEach((top, i) => {
+      const el = grainRefs.current[i];
+      if (el) gsap.set(el, { attr: { cx: top.finalX, cy: top.finalY } });
+    });
 
-    // Grains near the neck (low index, placed first by buildContainerPile) fall
-    // first — matching real hourglass physics where the bottom layer drains earliest.
+    if (!started) return;
+
+    const totalDuration = minutes * 60;
+    const tl = gsap.timeline({ delay: 0.5 });
+
+    // Per-grain animation phase durations.
+    const grainMidDur  = 0.18;
+    const grainDropDur = 0.16;
+    const grainLandDur = 0.10;
+    const maxTopFallDur = 0.08 + 0.3;
+    const maxPerGrainDur = maxTopFallDur + grainMidDur + grainDropDur + grainLandDur;
+
+    const fallSpan = totalDuration - maxPerGrainDur;
+
     topPositions.forEach((top, i) => {
       const bottom = bottomPositions[i];
       const el = grainRefs.current[i];
@@ -111,25 +127,34 @@ export default function Tomato() {
       const midX = neckX + (Math.random() - 0.5) * 10;
       const midY = bottom.finalY - (bottom.finalY - 150) * (0.4 + Math.random() * 0.2);
 
-      // Grains far from the neck take proportionally longer to reach it.
       const topFallDur = 0.08 + 0.3 * (150 - top.finalY) / 130;
 
       const grainTl = gsap.timeline();
       grainTl
         .to(el, { attr: { cx: neckX, cy: 150 }, duration: topFallDur, ease: 'power2.in' })
-        .to(el, { attr: { cx: midX, cy: midY }, duration: 0.18, ease: 'power1.in' })
-        .to(el, { attr: { cx: bottom.finalX, cy: bottom.finalY - 2 }, duration: 0.16, ease: 'power2.in' })
-        .to(el, { attr: { cy: bottom.finalY }, duration: 0.1, ease: 'bounce.out' });
+        .to(el, { attr: { cx: midX, cy: midY + 50 }, duration: grainMidDur, ease: 'power1.in' })
+        .to(el, { attr: { cx: bottom.finalX, cy: bottom.finalY - 2 }, duration: grainDropDur, ease: 'power2.in' })
+        .to(el, { attr: { cy: bottom.finalY - 4}, duration: grainLandDur, ease: 'bounce.out' });
 
       tl.add(grainTl, startTime);
     });
-  }, [topPositions, bottomPositions]);
+
+    return () => { tl.kill(); };
+  }, [topPositions, bottomPositions, minutes, started]);
 
   const topPath = "M 62 20 L 138 20 Q 188 45 184 80 Q 176 133 120 148 L 80 148 Q 24 133 16 80 Q 12 45 62 20 Z";
   const bottomPath = "M 80 152 L 120 152 Q 176 167 184 220 Q 188 255 138 280 L 62 280 Q 12 255 16 220 Q 24 167 80 152 Z";
 
   return (
     <div className="tomato-wrapper">
+      <div className="timer-controls">
+        <button className="timer-btn" onClick={() => { setMinutes(m => Math.max(1, m - 1)); setStarted(false); }}>−</button>
+        <span className="timer-label">{minutes} min</span>
+        <button className="timer-btn" onClick={() => { setMinutes(m => m + 1); setStarted(false); }}>+</button>
+      </div>
+      <button className="start-btn" onClick={() => setStarted(true)} disabled={started}>
+        Start
+      </button>
       <svg viewBox="0 0 200 300" width="280" height="420" xmlns="http://www.w3.org/2000/svg">
         <defs>
           {/* Single clip covering both bulbs + the 4 px neck gap so grains
