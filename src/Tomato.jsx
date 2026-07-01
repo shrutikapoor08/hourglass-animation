@@ -202,17 +202,36 @@ export default function Tomato() {
       <button className="start-btn" onClick={() => setStarted(true)} disabled={started}>
         Start
       </button>
-      <svg viewBox="0 0 200 300" width="280" height="420" xmlns="http://www.w3.org/2000/svg">
+      {/* viewBox extended: -12 left/right for pillars, -24 top / +24 bottom for disc platforms */}
+      <svg viewBox="-12 -24 224 348" width="280" height="435" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          {/* Single clip covering both bulbs + the 4 px neck gap so grains
-              stay visible while passing through the constriction. */}
           <clipPath id="glass-interior-clip">
             <path d={topPath} />
             <path d={bottomPath} />
           </clipPath>
+
+          {/* Pillar: horizontal gradient — lit on left, shadow on right */}
+          <linearGradient id="pillar-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor="#B07838" />
+            <stop offset="28%"  stopColor="#7A5020" />
+            <stop offset="72%"  stopColor="#4A2E0E" />
+            <stop offset="100%" stopColor="#1E0E04" />
+          </linearGradient>
+
+          {/* Platform front face: vertical gradient — lit on top, shadow on bottom */}
+          <linearGradient id="platform-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#9B6830" />
+            <stop offset="30%"  stopColor="#7A4E1E" />
+            <stop offset="80%"  stopColor="#4A2C0C" />
+            <stop offset="100%" stopColor="#221206" />
+          </linearGradient>
         </defs>
 
-        {/* All grains — start packed in the top container, animate to bottom pile */}
+        {/* Side pillars — behind glass */}
+        <rect x="-6"  y="0"  width="10" height="300" rx="5" fill="url(#pillar-grad)" />
+        <rect x="195" y="0"  width="10" height="300" rx="5" fill="url(#pillar-grad)" />
+
+        {/* All grains */}
         <g clipPath="url(#glass-interior-clip)">
           {topPositions.map((pos, i) => (
             <circle
@@ -233,11 +252,25 @@ export default function Tomato() {
         {/* Bottom glass bulb */}
         <path d={bottomPath} fill="rgba(180,220,255,0.10)" stroke="#aaa" strokeWidth="1.5" />
 
-        {/* Glass shine highlights — follow new left-edge curves */}
+        {/* Glass shine highlights */}
         <path d="M 42 22 Q 14 55 12 88 Q 10 122 34 148"
               fill="none" stroke="rgba(255,255,255,0.38)" strokeWidth="9" strokeLinecap="round" />
         <path d="M 34 152 Q 10 182 12 218 Q 14 252 40 278"
               fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="8" strokeLinecap="round" />
+
+        {/* ── Top platform ── */}
+        {/* Top face of disc (ellipse on top — catches most light) */}
+        {/* <ellipse cx="100" cy="-7" rx="112" ry="7" fill="#C08840" /> */}
+        {/* Front face of disc */}
+        <rect x="-12" y="-6" width="224" height="16" rx="5" fill="url(#platform-grad)" />
+
+        {/* ── Bottom platform ── */}
+        {/* Top face of disc */}
+        <ellipse cx="100" cy="298" rx="112" ry="7" fill="#B07830" />
+        {/* Front face of disc */}
+        <rect x="-12" y="298" width="224" height="16" rx="5" fill="url(#platform-grad)" />
+        {/* Bottom edge shadow line */}
+        <line x1="-7" y1="313" x2="207" y2="315" stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
       </svg>
     </div>
   );
