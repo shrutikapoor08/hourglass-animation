@@ -92,7 +92,7 @@ export default function Tomato() {
   // where each grain lands. Same sandpile algorithm, different container geometry.
   const { topPositions, bottomPositions } = useMemo(() => ({
     topPositions: fillContainer(20, 148, topBulbHalfWidth),
-    bottomPositions: fillContainer(152, 292, bottomBulbHalfWidth),
+    bottomPositions: fillContainer(152, 282, bottomBulbHalfWidth),
   }), []);
 
   useEffect(() => {
