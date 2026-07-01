@@ -21,8 +21,9 @@ function bottomBulbHalfWidth(y) {
 }
 
 // Uniformly scatter grains throughout a container's interior. Used for the top
-// bulb so it appears fully packed at the start. Grains are sorted largest-y
-// first (nearest the neck) so the lowest ones drain first, matching physics.
+// bulb so it appears fully packed at the start. Grains are sorted smallest-y
+// first (nearest the top surface) so the surface drains first — the sand level
+// drops from the top down, matching gravity.
 function fillContainer(minY, maxY, halfWidthFn) {
   const grains = [];
   for (let i = 0; i < GRAIN_COUNT; i++) {
@@ -35,7 +36,7 @@ function fillContainer(minY, maxY, halfWidthFn) {
       radius: MIN_GRAIN_RADIUS + Math.random() * (MAX_GRAIN_RADIUS - MIN_GRAIN_RADIUS),
     });
   }
-  grains.sort((a, b) => b.finalY - a.finalY);
+  grains.sort((a, b) => a.finalY - b.finalY);
   return grains;
 }
 
@@ -46,7 +47,7 @@ function fillContainer(minY, maxY, halfWidthFn) {
 function buildConePile(floorY, neckY, halfWidthFn) {
   const grains = [];
   const centerX = NECK_X;
-  const slope = 0.1;          // y-rise per x-unit: larger = narrower/steeper cone
+  const slope = 0.2;          // y-rise per x-unit: larger = narrower/steeper cone
   const peakY = neckY + 3;   // cone tip just below the neck opening
   const coneH = floorY - peakY;
 
@@ -165,7 +166,9 @@ export default function Tomato() {
       const midX = neckX + (Math.random() - 0.5) * 10;
       const midY = bottom.finalY - (bottom.finalY - 150) * (0.4 + Math.random() * 0.2);
 
-      const topFallDur = 0.08 + 0.3 * (150 - top.finalY) / 130;
+      const dx = top.finalX - NECK_X;
+      const dy = 150 - top.finalY;
+      const topFallDur = 0.08 + 0.3 * Math.sqrt(dx * dx + dy * dy) / Math.sqrt(136 * 136 + 130 * 130);
 
       // Gravity compression: grains buried deeper get pushed further outward as
       // weight builds above them. depthFraction=1 for the first grain (deepest),
