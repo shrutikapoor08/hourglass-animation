@@ -10,13 +10,6 @@ const FLOOR_Y = 488; // inside floor of the bottom bulb
 const PEAK_MAX_RISE = 132; // how tall the finished pile gets
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// Grain look carried over from the original Tomato, scaled from its 224-wide
-// viewBox to this 400-wide one so grains render at the same on-screen size.
-const GRAIN_SCALE = 400 / 224;
-const MIN_GRAIN_RADIUS = 0.05 * GRAIN_SCALE;
-const MAX_GRAIN_RADIUS = 1 * GRAIN_SCALE;
-const GRAIN_COLORS = ["#d4a843", "#c89a3a", "#e0b452", "#cfa23f", "#ddd"];
-
 const DEFAULT_DURATIONS = [
   { label: "30s", secs: 30 },
   { label: "5 min", secs: 300 },
@@ -33,12 +26,7 @@ function topHalfWidth(y) {
 const pilePeakY = (p) => FLOOR_Y - PEAK_MAX_RISE * Math.pow(p, 0.7);
 const pileHalfWidth = (p) => 26 + 118 * Math.pow(p, 0.55);
 
-const grainRadius = () =>
-  MIN_GRAIN_RADIUS + Math.random() * (MAX_GRAIN_RADIUS - MIN_GRAIN_RADIUS);
-const grainColor = () =>
-  GRAIN_COLORS[Math.floor(Math.random() * GRAIN_COLORS.length)];
-
-export default function Tomato({
+export default function HourglassTimer({
   durations = DEFAULT_DURATIONS,
   defaultDuration = 1500,
   autoFlip = true,
@@ -158,35 +146,31 @@ export default function Tomato({
     const grains = grainsRef.current;
     if (!grains || reduceMotionRef.current) return;
 
-    // A pinch of grains per spawn, staggered slightly down the neck, so the
-    // stream reads as many discrete particles instead of one falling dot.
-    const count = 2 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < count; i++) {
-      const g = document.createElementNS(SVG_NS, "circle");
-      const x0 = CX + (Math.random() * 5 - 2.5);
-      g.setAttribute("cx", x0);
-      g.setAttribute("cy", NECK_Y - 4 + Math.random() * 10);
-      g.setAttribute("r", grainRadius());
-      g.setAttribute("fill", grainColor());
-      grains.appendChild(g);
+    const g = document.createElementNS(SVG_NS, "circle");
+    const r = 0.9 + Math.random() * 1.1;
+    const x0 = CX + (Math.random() * 5 - 2.5);
+    g.setAttribute("cx", x0);
+    g.setAttribute("cy", NECK_Y - 4);
+    g.setAttribute("r", r);
+    g.setAttribute("fill", Math.random() < 0.5 ? "#d7b26b" : "#b08948");
+    grains.appendChild(g);
 
-      const landY = pilePeakY(progressRef.current.p) + Math.random() * 8;
-      gsap.to(g, {
-        attr: { cy: landY, cx: x0 + (Math.random() * 8 - 4) },
-        duration: 0.36 + Math.random() * 0.2,
-        ease: "power2.in", // gravity: accelerate on the way down
-        onComplete: () => {
-          // a brief scatter on impact, then absorb into the pile
-          gsap.to(g, {
-            attr: { cx: x0 + (Math.random() * 22 - 11), cy: landY + 3 },
-            opacity: 0,
-            duration: 0.22,
-            ease: "power1.out",
-            onComplete: () => g.remove(),
-          });
-        },
-      });
-    }
+    const landY = pilePeakY(progressRef.current.p) + Math.random() * 8;
+    gsap.to(g, {
+      attr: { cy: landY, cx: x0 + (Math.random() * 8 - 4) },
+      duration: 0.36 + Math.random() * 0.2,
+      ease: "power2.in", // gravity: accelerate on the way down
+      onComplete: () => {
+        // a brief scatter on impact, then absorb into the pile
+        gsap.to(g, {
+          attr: { cx: x0 + (Math.random() * 22 - 11), cy: landY + 3 },
+          opacity: 0,
+          duration: 0.22,
+          ease: "power1.out",
+          onComplete: () => g.remove(),
+        });
+      },
+    });
   };
 
   // Grains tumbling down the crater walls inside the top bulb
@@ -200,8 +184,8 @@ export default function Tomato({
     const x0 = CX + side * (10 + Math.random() * 24);
     g.setAttribute("cx", x0);
     g.setAttribute("cy", level + 4 + Math.random() * 8);
-    g.setAttribute("r", grainRadius());
-    g.setAttribute("fill", grainColor());
+    g.setAttribute("r", 0.8 + Math.random());
+    g.setAttribute("fill", "#8f6a33");
     topGrains.appendChild(g);
 
     gsap.to(g, {
@@ -309,11 +293,11 @@ export default function Tomato({
       if (!runningRef.current || progressRef.current.p >= 1) return;
       grainClock += delta;
       topGrainClock += delta;
-      if (grainClock > 30) {
+      if (grainClock > 80) {
         grainClock = 0;
         spawnGrain();
       }
-      if (topGrainClock > 120) {
+      if (topGrainClock > 220) {
         topGrainClock = 0;
         spawnTopGrain();
       }
@@ -400,53 +384,30 @@ export default function Tomato({
           style={{ width: "100%", height: "auto", display: "block" }}
         >
           <defs>
-            <linearGradient id="tm-wood" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="hg-wood" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor="#8a5c26" />
               <stop offset=".18" stopColor="#d9ab63" />
               <stop offset=".5" stopColor="#c89a52" />
               <stop offset=".82" stopColor="#9a6c30" />
               <stop offset="1" stopColor="#7c521f" />
             </linearGradient>
-            <linearGradient id="tm-woodTop" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="hg-woodTop" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#e3b76e" />
               <stop offset="1" stopColor="#b1813d" />
             </linearGradient>
-            <linearGradient id="tm-sandFill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="hg-sandFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#d7b26b" />
               <stop offset="1" stopColor="#a97f3f" />
             </linearGradient>
-            <linearGradient id="tm-glassSheen" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="hg-glassSheen" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor="#ffffff" stopOpacity=".28" />
               <stop offset=".22" stopColor="#ffffff" stopOpacity=".05" />
               <stop offset=".78" stopColor="#ffffff" stopOpacity=".03" />
               <stop offset="1" stopColor="#ffffff" stopOpacity=".22" />
             </linearGradient>
 
-            {/* Grain speckle: turbulence noise masked to the sand shapes, so the
-                solid sand masses read as packed individual grains */}
-            <filter id="tm-grainTexture" x="-5%" y="-5%" width="110%" height="110%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.55"
-                numOctaves="2"
-                seed="7"
-                result="noise"
-              />
-              <feColorMatrix
-                in="noise"
-                type="matrix"
-                values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 -0.12"
-                result="speckle"
-              />
-              <feComposite in="speckle" in2="SourceGraphic" operator="in" result="darkGrains" />
-              <feMerge>
-                <feMergeNode in="SourceGraphic" />
-                <feMergeNode in="darkGrains" />
-              </feMerge>
-            </filter>
-
             {/* Interior of the top bulb: everything sandy up top clips to this */}
-            <clipPath id="tm-clipTop">
+            <clipPath id="hg-clipTop">
               <path
                 d="M 120 98
                    C 120 196, 154 252, 193 288
@@ -456,7 +417,7 @@ export default function Tomato({
             </clipPath>
 
             {/* Interior of the bottom bulb */}
-            <clipPath id="tm-clipBottom">
+            <clipPath id="hg-clipBottom">
               <path
                 d="M 193 300 L 207 300
                    C 246 336, 280 392, 280 490
@@ -470,25 +431,20 @@ export default function Tomato({
           <ellipse cx="200" cy="556" rx="132" ry="14" fill="#000" opacity=".35" />
 
           {/* sand: bottom pile */}
-          <g clipPath="url(#tm-clipBottom)">
-            <g filter="url(#tm-grainTexture)">
-              <path ref={pileRef} fill="url(#tm-sandFill)" d="" />
-            </g>
+          <g clipPath="url(#hg-clipBottom)">
+            <path ref={pileRef} fill="url(#hg-sandFill)" d="" />
             <path ref={pileShadeRef} fill="#8f6a33" opacity=".35" d="" />
           </g>
 
-          {/* sand: falling stream + particles. The stream is kept translucent
-              so the individual grains tumbling through it stay visible. */}
+          {/* sand: falling stream + particles */}
           <g>
-            <path ref={streamRef} fill="#c9a35e" opacity=".45" d="" />
+            <path ref={streamRef} fill="#c9a35e" opacity=".9" d="" />
             <g ref={grainsRef} />
           </g>
 
           {/* sand: top reservoir with funnel crater */}
-          <g clipPath="url(#tm-clipTop)">
-            <g filter="url(#tm-grainTexture)">
-              <path ref={topSandRef} fill="url(#tm-sandFill)" d="" />
-            </g>
+          <g clipPath="url(#hg-clipTop)">
+            <path ref={topSandRef} fill="url(#hg-sandFill)" d="" />
             <path ref={craterShadeRef} fill="#8f6a33" opacity=".4" d="" />
             <g ref={topGrainsRef} />
           </g>
@@ -501,7 +457,7 @@ export default function Tomato({
                L 284 492
                C 284 382, 248 326, 209 290
                C 248 254, 284 198, 284 96 Z"
-            fill="url(#tm-glassSheen)"
+            fill="url(#hg-glassSheen)"
           />
           {/* glass walls */}
           <path
@@ -540,14 +496,14 @@ export default function Tomato({
 
           {/* wooden caps */}
           <g>
-            <rect x="72" y="66" width="256" height="30" rx="14" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="66" rx="128" ry="17" fill="url(#tm-woodTop)" />
+            <rect x="72" y="66" width="256" height="30" rx="14" fill="url(#hg-wood)" />
+            <ellipse cx="200" cy="66" rx="128" ry="17" fill="url(#hg-woodTop)" />
             <ellipse cx="200" cy="63" rx="112" ry="12" fill="#c9985077" />
           </g>
           <g>
-            <rect x="72" y="486" width="256" height="30" rx="14" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="516" rx="128" ry="17" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="486" rx="128" ry="16" fill="url(#tm-woodTop)" />
+            <rect x="72" y="486" width="256" height="30" rx="14" fill="url(#hg-wood)" />
+            <ellipse cx="200" cy="516" rx="128" ry="17" fill="url(#hg-wood)" />
+            <ellipse cx="200" cy="486" rx="128" ry="16" fill="url(#hg-woodTop)" />
           </g>
         </svg>
       </div>
