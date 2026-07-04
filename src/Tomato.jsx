@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 
-// Geometry constants for the SVG hourglass (viewBox 0 0 400 600)
+// Retro pixel-art hourglass. Everything snaps to a 12px grid inside a
+// 400x600 viewBox: stepped glass walls, flat colors, square grains.
+const PX = 12; // one art "pixel"
+const HALF = PX / 2;
 const CX = 200; // horizontal center of the glass
-const NECK_Y = 294; // where the two bulbs meet
-const TOP_FULL_Y = 148; // sand surface when the top bulb is full
-const TOP_EMPTY_Y = 290; // sand surface when the top bulb is empty
-const FLOOR_Y = 488; // inside floor of the bottom bulb
+const GLASS_TOP = 108; // glass meets the top cap here
+const NECK_TOP = 276; // first of the two pinch rows
+const FLOOR_Y = 468; // interior floor (top of bottom cap)
+const TOP_FULL_Y = 132; // sand surface when the top bulb is full
 const PEAK_MAX_RISE = 132; // how tall the finished pile gets
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// Grain look carried over from the original Tomato, scaled from its 224-wide
-// viewBox to this 400-wide one so grains render at the same on-screen size.
-const GRAIN_SCALE = 400 / 224;
-const MIN_GRAIN_RADIUS = 0.05 * GRAIN_SCALE;
-const MAX_GRAIN_RADIUS = 1 * GRAIN_SCALE;
-const GRAIN_COLORS = ["#d4a843", "#c89a3a", "#e0b452", "#cfa23f", "#ddd"];
+const PALETTE = {
+  outline: "#7a4a28",
+  wood: "#a26b3b",
+  woodLight: "#bd8a52",
+  interior: "#f6efdc",
+  sand: "#ddc48f",
+  sandDark: "#c9ab72",
+  stream: "#d2b67f",
+};
+
+const GRAIN_COLORS = ["#d6ba82", "#cbb076", "#e0cb99", "#c2a468"];
 
 const DEFAULT_DURATIONS = [
   { label: "30s", secs: 30 },
@@ -23,18 +31,43 @@ const DEFAULT_DURATIONS = [
   { label: "25 min", secs: 1500 },
 ];
 
-// Half-width of the top bulb interior at a given y. Matches the clip path
-// closely enough that overdrawn sand gets trimmed by the clip.
-function topHalfWidth(y) {
-  const t = Math.min(Math.max((y - 98) / (288 - 98), 0), 1);
-  return 80 * (1 - t * t * 0.92) + 7; // wide up high, ~7px at the neck
-}
+const snap = (v) => Math.round(v / PX) * PX;
+// Half-widths are always HALF + PX*k so a single cell sits centered on CX.
+const quantHW = (v) => HALF + PX * Math.max(0, Math.round((v - HALF) / PX));
+
+// Bulb profile in cells, one entry per row: short vertical walls under the
+// cap, then a straight 45-degree staircase (one cell per row) to the neck.
+const TOP_KS = [11, 11, 11, 11, 10, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+
+// One row per 12px of glass height; out/inn are half-widths of the outer
+// wall and the interior. The bottom bulb mirrors the top.
+const ROWS = [...TOP_KS, 1, 1, ...[...TOP_KS].reverse()].map((k, i) => ({
+  y: GLASS_TOP + i * PX,
+  out: HALF + PX * k,
+  inn: HALF + PX * (k - 1),
+}));
+
+const innerHW = (y) => ROWS[(y - GLASS_TOP) / PX]?.inn ?? HALF;
+
+const cell = (x, y, w = PX, h = PX) => `M ${x} ${y} h ${w} v ${h} h ${-w} Z `;
+const rowsToPath = (rows, key) =>
+  rows.map((r) => cell(CX - r[key], r.y, r[key] * 2)).join("");
+
+const GLASS_OUTLINE_D = rowsToPath(ROWS, "out");
+const GLASS_INTERIOR_D = rowsToPath(ROWS, "inn");
+const CLIP_TOP_D = rowsToPath(ROWS.slice(0, 16), "inn"); // top bulb + neck
+const CLIP_BOTTOM_D = rowsToPath(ROWS.slice(14), "inn"); // neck + bottom bulb
+
+// A one-cell white glint hugging the left interior wall of each bulb
+const SHEEN_D = ROWS.filter(
+  (r) => (r.y >= 120 && r.y <= 252) || (r.y >= 324 && r.y <= 444)
+)
+  .map((r) => cell(CX - r.inn, r.y))
+  .join("");
 
 const pilePeakY = (p) => FLOOR_Y - PEAK_MAX_RISE * Math.pow(p, 0.7);
-const pileHalfWidth = (p) => 26 + 118 * Math.pow(p, 0.55);
+const sandLevelY = (p) => snap(TOP_FULL_Y + (NECK_TOP - TOP_FULL_Y) * p);
 
-const grainRadius = () =>
-  MIN_GRAIN_RADIUS + Math.random() * (MAX_GRAIN_RADIUS - MIN_GRAIN_RADIUS);
 const grainColor = () =>
   GRAIN_COLORS[Math.floor(Math.random() * GRAIN_COLORS.length)];
 
@@ -74,23 +107,26 @@ export default function Tomato({
     const craterShade = craterShadeRef.current;
     if (!topSand || !craterShade) return;
 
-    const level = TOP_FULL_Y + (TOP_EMPTY_Y - TOP_FULL_Y) * p;
-    const dip = 14 + 26 * Math.min(p * 2.5 + 0.15, 1); // crater deepens as it drains
-    const hw = topHalfWidth(level) + 20; // overdraw; clip trims it
+    const level = sandLevelY(p);
+    let d = "";
+    for (let y = level; y < NECK_TOP; y += PX) {
+      const hw = innerHW(y);
+      d += cell(CX - hw, y, hw * 2);
+    }
+    topSand.setAttribute("d", d);
 
-    topSand.setAttribute(
-      "d",
-      `M ${CX - hw} ${level}
-       C ${CX - hw * 0.4} ${level}, ${CX - 16} ${level + dip * 0.55}, ${CX} ${level + dip}
-       C ${CX + 16} ${level + dip * 0.55}, ${CX + hw * 0.4} ${level}, ${CX + hw} ${level}
-       L ${CX + hw} ${NECK_Y + 8} L ${CX - hw} ${NECK_Y + 8} Z`
-    );
-    craterShade.setAttribute(
-      "d",
-      `M ${CX - 22} ${level + dip * 0.35}
-       Q ${CX} ${level + dip + 6} ${CX + 22} ${level + dip * 0.35}
-       Q ${CX} ${level + dip * 0.8} ${CX - 22} ${level + dip * 0.35} Z`
-    );
+    // crater: a stepped V notch carved out of the surface, one cell deeper
+    // per step, deepening as the bulb drains
+    const dip = Math.min(3, 1 + Math.floor(p * 4));
+    let notch = "";
+    for (let k = 0; k < dip; k++) {
+      const y = level + k * PX;
+      if (y >= NECK_TOP) break;
+      const hw = Math.min(HALF + PX * (dip - 1 - k), innerHW(y));
+      notch += cell(CX - hw, y, hw * 2);
+    }
+    craterShade.setAttribute("d", notch);
+
     const empty = p >= 1;
     topSand.style.display = empty ? "none" : "";
     craterShade.style.display = empty ? "none" : "";
@@ -106,22 +142,23 @@ export default function Tomato({
       pileShade.setAttribute("d", "");
       return;
     }
-    const peak = pilePeakY(p);
-    const hw = pileHalfWidth(p);
-    const shoulder = peak + (FLOOR_Y - peak) * 0.42;
+    const peak = Math.min(snap(pilePeakY(p)), FLOOR_Y - PX);
+    const baseHW = Math.min(
+      quantHW(26 + 118 * Math.pow(p, 0.55)),
+      innerHW(FLOOR_Y - PX)
+    );
+    const span = FLOOR_Y - PX - peak;
 
-    pile.setAttribute(
-      "d",
-      `M ${CX - hw} ${FLOOR_Y + 4}
-       Q ${CX - hw * 0.42} ${shoulder}, ${CX} ${peak}
-       Q ${CX + hw * 0.42} ${shoulder}, ${CX + hw} ${FLOOR_Y + 4} Z`
-    );
-    pileShade.setAttribute(
-      "d",
-      `M ${CX - hw * 0.5} ${FLOOR_Y + 4}
-       Q ${CX - hw * 0.18} ${shoulder + 8}, ${CX} ${peak + 4}
-       L ${CX} ${FLOOR_Y + 4} Z`
-    );
+    let d = "";
+    let shade = "";
+    for (let y = peak; y < FLOOR_Y; y += PX) {
+      const t = span ? (y - peak) / span : 1;
+      const hw = Math.min(quantHW(HALF + (baseHW - HALF) * t), innerHW(y));
+      d += cell(CX - hw, y, hw * 2);
+      if (hw >= HALF + PX) shade += cell(CX + hw - PX, y); // shaded right slope
+    }
+    pile.setAttribute("d", d);
+    pileShade.setAttribute("d", shade);
   };
 
   const drawStream = (p) => {
@@ -131,12 +168,14 @@ export default function Tomato({
       stream.setAttribute("d", "");
       return;
     }
-    const bottom = pilePeakY(p) + 4;
-    stream.setAttribute(
-      "d",
-      `M ${CX - 2.4} ${NECK_Y - 6} L ${CX + 2.4} ${NECK_Y - 6}
-       L ${CX + 1.1} ${bottom} L ${CX - 1.1} ${bottom} Z`
-    );
+    // dotted column of cells; the alternating phase makes the dots march
+    const bottom = snap(pilePeakY(p));
+    const phase = Math.floor(Date.now() / 90) % 2;
+    let d = "";
+    for (let y = NECK_TOP; y < bottom; y += PX) {
+      if ((y / PX + phase) % 2 === 0) d += cell(CX - HALF, y);
+    }
+    stream.setAttribute("d", d);
   };
 
   const render = () => {
@@ -158,30 +197,29 @@ export default function Tomato({
     const grains = grainsRef.current;
     if (!grains || reduceMotionRef.current) return;
 
-    // A pinch of grains per spawn, staggered slightly down the neck, so the
-    // stream reads as many discrete particles instead of one falling dot.
-    const count = 2 + Math.floor(Math.random() * 3);
+    const count = 1 + Math.floor(Math.random() * 2);
     for (let i = 0; i < count; i++) {
-      const g = document.createElementNS(SVG_NS, "circle");
-      const x0 = CX + (Math.random() * 5 - 2.5);
-      g.setAttribute("cx", x0);
-      g.setAttribute("cy", NECK_Y - 4 + Math.random() * 10);
-      g.setAttribute("r", grainRadius());
+      const g = document.createElementNS(SVG_NS, "rect");
+      const x0 = CX - HALF + HALF * Math.floor(Math.random() * 2);
+      g.setAttribute("x", x0);
+      g.setAttribute("y", NECK_TOP + HALF * Math.floor(Math.random() * 4));
+      g.setAttribute("width", HALF);
+      g.setAttribute("height", HALF);
       g.setAttribute("fill", grainColor());
       grains.appendChild(g);
 
-      const landY = pilePeakY(progressRef.current.p) + Math.random() * 8;
+      const landY = snap(pilePeakY(progressRef.current.p)) - HALF;
       gsap.to(g, {
-        attr: { cy: landY, cx: x0 + (Math.random() * 8 - 4) },
-        duration: 0.36 + Math.random() * 0.2,
-        ease: "power2.in", // gravity: accelerate on the way down
+        attr: { y: landY },
+        duration: 0.3 + Math.random() * 0.2,
+        ease: `steps(${5 + Math.floor(Math.random() * 4)})`, // chunky descent
         onComplete: () => {
-          // a brief scatter on impact, then absorb into the pile
+          // a one-step sideways hop on impact, then absorb into the pile
           gsap.to(g, {
-            attr: { cx: x0 + (Math.random() * 22 - 11), cy: landY + 3 },
+            attr: { x: x0 + (Math.random() < 0.5 ? -PX : PX), y: landY + HALF },
             opacity: 0,
-            duration: 0.22,
-            ease: "power1.out",
+            duration: 0.16,
+            ease: "steps(2)",
             onComplete: () => g.remove(),
           });
         },
@@ -194,21 +232,22 @@ export default function Tomato({
     const topGrains = topGrainsRef.current;
     if (!topGrains || reduceMotionRef.current) return;
 
-    const level = TOP_FULL_Y + (TOP_EMPTY_Y - TOP_FULL_Y) * progressRef.current.p;
-    const g = document.createElementNS(SVG_NS, "circle");
+    const level = sandLevelY(progressRef.current.p);
+    const g = document.createElementNS(SVG_NS, "rect");
     const side = Math.random() < 0.5 ? -1 : 1;
-    const x0 = CX + side * (10 + Math.random() * 24);
-    g.setAttribute("cx", x0);
-    g.setAttribute("cy", level + 4 + Math.random() * 8);
-    g.setAttribute("r", grainRadius());
+    const x0 = CX + side * (PX + HALF * Math.floor(Math.random() * 5));
+    g.setAttribute("x", x0);
+    g.setAttribute("y", Math.min(level + PX, NECK_TOP - PX));
+    g.setAttribute("width", HALF);
+    g.setAttribute("height", HALF);
     g.setAttribute("fill", grainColor());
     topGrains.appendChild(g);
 
     gsap.to(g, {
-      attr: { cx: CX + side * 2, cy: NECK_Y - 2 },
+      attr: { x: CX - HALF, y: NECK_TOP - HALF },
       duration: 0.5 + Math.random() * 0.3,
-      ease: "power1.in",
-      opacity: 0.2,
+      ease: "steps(4)",
+      opacity: 0.25,
       onComplete: () => g.remove(),
     });
   };
@@ -246,12 +285,12 @@ export default function Tomato({
     runningRef.current = false;
     setStatus("done");
     render();
-    // the pile settles with a tiny shrug
+    // the pile settles with a single-step nudge
     if (pileRef.current) {
       gsap.fromTo(
         pileRef.current,
-        { scaleY: 1.02, transformOrigin: "200px 488px" },
-        { scaleY: 1, duration: 0.5, ease: "elastic.out(1, 0.5)" }
+        { y: -HALF },
+        { y: 0, duration: 0.25, ease: "steps(1)" }
       );
     }
     onComplete?.();
@@ -263,8 +302,8 @@ export default function Tomato({
     runningRef.current = false;
     gsap.to(glassWrapRef.current, {
       rotation: 180,
-      duration: 0.9,
-      ease: "power2.inOut",
+      duration: 0.8,
+      ease: "steps(9)", // the flip snaps through frames like a sprite
       onComplete: () => {
         gsap.set(glassWrapRef.current, { rotation: 0 });
         progressRef.current.p = 0;
@@ -309,11 +348,11 @@ export default function Tomato({
       if (!runningRef.current || progressRef.current.p >= 1) return;
       grainClock += delta;
       topGrainClock += delta;
-      if (grainClock > 30) {
+      if (grainClock > 60) {
         grainClock = 0;
         spawnGrain();
       }
-      if (topGrainClock > 120) {
+      if (topGrainClock > 160) {
         topGrainClock = 0;
         spawnTopGrain();
       }
@@ -339,54 +378,54 @@ export default function Tomato({
       alignItems: "center",
       justifyContent: "center",
       gap: 20,
-      padding: "32px 16px",
-      background: "radial-gradient(120% 90% at 50% 20%, #2b241a, #1d1913 70%)",
-      fontFamily:
-        'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-      color: "#efe6d4",
+      padding: "48px 16px",
+      boxSizing: "border-box",
+      background: "#f6eedb",
+      // concentric cream frames, like the reference art
+      boxShadow:
+        "inset 0 0 0 16px #e3d5b0, inset 0 0 0 40px #e9dec1, inset 0 0 0 72px #efe6cf",
+      fontFamily: '"Press Start 2P", "Courier New", monospace',
+      color: "#7b5b36",
     },
     glassWrap: {
-      width: "min(340px, 78vw)",
-      filter: "drop-shadow(0 24px 40px rgba(0,0,0,.45))",
+      width: "min(320px, 74vw)",
     },
     clock: {
-      fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-      fontSize: 34,
-      fontWeight: 500,
-      letterSpacing: "0.06em",
+      fontSize: 26,
+      letterSpacing: "0.08em",
       fontVariantNumeric: "tabular-nums",
-      color: status === "done" ? "#e8b45a" : "#efe6d4",
+      color: status === "done" ? "#a3612e" : "#6d4a28",
     },
     controls: {
       display: "flex",
       alignItems: "center",
-      gap: 10,
+      gap: 14,
       flexWrap: "wrap",
       justifyContent: "center",
     },
     chip: (active) => ({
       appearance: "none",
-      border: `1px solid ${active ? "#c9a35e" : "rgba(239,230,212,.22)"}`,
-      background: active ? "#c9a35e" : "rgba(239,230,212,.04)",
-      color: active ? "#221a0e" : "#9c8f77",
-      fontWeight: active ? 600 : 400,
-      borderRadius: 999,
-      padding: "8px 16px",
-      fontSize: 14,
+      border: "3px solid #7a4a28",
+      background: active ? "#a26b3b" : "#f4ecd9",
+      color: active ? "#f7f0dd" : "#7b5b36",
+      borderRadius: 0,
+      padding: "10px 14px",
+      fontSize: 10,
       fontFamily: "inherit",
       cursor: "pointer",
+      boxShadow: active ? "2px 2px 0 #5f3a1e" : "4px 4px 0 #7a4a28",
     }),
     btn: (primary) => ({
       appearance: "none",
-      border: `1px solid ${primary ? "#e8b45a" : "rgba(239,230,212,.22)"}`,
-      background: primary ? "#e8b45a" : "rgba(239,230,212,.04)",
-      color: primary ? "#221a0e" : "#9c8f77",
-      fontWeight: primary ? 600 : 400,
-      borderRadius: 999,
-      padding: "8px 16px",
-      fontSize: 14,
+      border: "3px solid #7a4a28",
+      background: primary ? "#a3612e" : "#f4ecd9",
+      color: primary ? "#f7f0dd" : "#7b5b36",
+      borderRadius: 0,
+      padding: "10px 14px",
+      fontSize: 10,
       fontFamily: "inherit",
       cursor: "pointer",
+      boxShadow: "4px 4px 0 #7a4a28",
     }),
   };
 
@@ -396,158 +435,71 @@ export default function Tomato({
         <svg
           viewBox="0 0 400 600"
           role="img"
-          aria-label="Hourglass with sand draining from the top bulb to the bottom bulb"
+          aria-label="Pixel-art hourglass with sand draining from the top bulb to the bottom bulb"
           style={{ width: "100%", height: "auto", display: "block" }}
+          shapeRendering="crispEdges"
         >
           <defs>
-            <linearGradient id="tm-wood" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#8a5c26" />
-              <stop offset=".18" stopColor="#d9ab63" />
-              <stop offset=".5" stopColor="#c89a52" />
-              <stop offset=".82" stopColor="#9a6c30" />
-              <stop offset="1" stopColor="#7c521f" />
-            </linearGradient>
-            <linearGradient id="tm-woodTop" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#e3b76e" />
-              <stop offset="1" stopColor="#b1813d" />
-            </linearGradient>
-            <linearGradient id="tm-sandFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#d7b26b" />
-              <stop offset="1" stopColor="#a97f3f" />
-            </linearGradient>
-            <linearGradient id="tm-glassSheen" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#ffffff" stopOpacity=".28" />
-              <stop offset=".22" stopColor="#ffffff" stopOpacity=".05" />
-              <stop offset=".78" stopColor="#ffffff" stopOpacity=".03" />
-              <stop offset="1" stopColor="#ffffff" stopOpacity=".22" />
-            </linearGradient>
-
-            {/* Grain speckle: turbulence noise masked to the sand shapes, so the
-                solid sand masses read as packed individual grains */}
-            <filter id="tm-grainTexture" x="-5%" y="-5%" width="110%" height="110%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.55"
-                numOctaves="2"
-                seed="7"
-                result="noise"
-              />
-              <feColorMatrix
-                in="noise"
-                type="matrix"
-                values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 -0.12"
-                result="speckle"
-              />
-              <feComposite in="speckle" in2="SourceGraphic" operator="in" result="darkGrains" />
-              <feMerge>
-                <feMergeNode in="SourceGraphic" />
-                <feMergeNode in="darkGrains" />
-              </feMerge>
-            </filter>
-
-            {/* Interior of the top bulb: everything sandy up top clips to this */}
+            {/* flat sand with a sparse two-dot dither */}
+            <pattern
+              id="tm-sand"
+              width="24"
+              height="24"
+              patternUnits="userSpaceOnUse"
+            >
+              <rect width="24" height="24" fill={PALETTE.sand} />
+              <rect width="6" height="6" fill={PALETTE.sandDark} />
+              <rect x="12" y="12" width="6" height="6" fill={PALETTE.sandDark} />
+            </pattern>
             <clipPath id="tm-clipTop">
-              <path
-                d="M 120 98
-                   C 120 196, 154 252, 193 288
-                   L 193 300 L 207 300 L 207 288
-                   C 246 252, 280 196, 280 98 Z"
-              />
+              <path d={CLIP_TOP_D} />
             </clipPath>
-
-            {/* Interior of the bottom bulb */}
             <clipPath id="tm-clipBottom">
-              <path
-                d="M 193 300 L 207 300
-                   C 246 336, 280 392, 280 490
-                   L 120 490
-                   C 120 392, 154 336, 193 300 Z"
-              />
+              <path d={CLIP_BOTTOM_D} />
             </clipPath>
           </defs>
 
-          {/* soft contact shadow under the base */}
-          <ellipse cx="200" cy="556" rx="132" ry="14" fill="#000" opacity=".35" />
+          {/* ground shadow: a single darker row under the base */}
+          <rect x={38} y={516} width={324} height={PX} fill="#d9c79c" />
+
+          {/* glass: dark stepped silhouette with the interior laid on top */}
+          <path d={GLASS_OUTLINE_D} fill={PALETTE.outline} />
+          <path d={GLASS_INTERIOR_D} fill={PALETTE.interior} />
 
           {/* sand: bottom pile */}
           <g clipPath="url(#tm-clipBottom)">
-            <g filter="url(#tm-grainTexture)">
-              <path ref={pileRef} fill="url(#tm-sandFill)" d="" />
-            </g>
-            <path ref={pileShadeRef} fill="#8f6a33" opacity=".35" d="" />
+            <path ref={pileRef} fill="url(#tm-sand)" d="" />
+            <path ref={pileShadeRef} fill={PALETTE.sandDark} d="" />
           </g>
 
-          {/* sand: falling stream + particles. The stream is kept translucent
-              so the individual grains tumbling through it stay visible. */}
-          <g>
-            <path ref={streamRef} fill="#c9a35e" opacity=".45" d="" />
-            <g ref={grainsRef} />
-          </g>
+          {/* sand: dotted falling stream + loose grains */}
+          <path ref={streamRef} fill={PALETTE.stream} d="" />
+          <g ref={grainsRef} />
 
-          {/* sand: top reservoir with funnel crater */}
+          {/* sand: top reservoir with stepped crater */}
           <g clipPath="url(#tm-clipTop)">
-            <g filter="url(#tm-grainTexture)">
-              <path ref={topSandRef} fill="url(#tm-sandFill)" d="" />
-            </g>
-            <path ref={craterShadeRef} fill="#8f6a33" opacity=".4" d="" />
+            <path ref={topSandRef} fill="url(#tm-sand)" d="" />
+            <path ref={craterShadeRef} fill={PALETTE.interior} d="" />
             <g ref={topGrainsRef} />
           </g>
 
-          {/* glass body tint */}
-          <path
-            d="M 116 96
-               C 116 198, 152 254, 191 290
-               C 152 326, 116 382, 116 492
-               L 284 492
-               C 284 382, 248 326, 209 290
-               C 248 254, 284 198, 284 96 Z"
-            fill="url(#tm-glassSheen)"
-          />
-          {/* glass walls */}
-          <path
-            d="M 116 96 C 116 198, 152 254, 191 290 C 152 326, 116 382, 116 492"
-            fill="none"
-            stroke="#f4efe6"
-            strokeOpacity=".65"
-            strokeWidth="5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 284 96 C 284 198, 248 254, 209 290 C 248 326, 284 382, 284 492"
-            fill="none"
-            stroke="#f4efe6"
-            strokeOpacity=".65"
-            strokeWidth="5"
-            strokeLinecap="round"
-          />
-          {/* inner edge glints */}
-          <path
-            d="M 128 108 C 128 190, 158 244, 190 276"
-            fill="none"
-            stroke="#ffffff"
-            strokeOpacity=".5"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 128 476 C 130 404, 156 348, 186 316"
-            fill="none"
-            stroke="#ffffff"
-            strokeOpacity=".35"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
+          {/* glass glint down the left interior wall */}
+          <path d={SHEEN_D} fill="#ffffff" opacity=".45" />
 
-          {/* wooden caps */}
+          {/* wooden caps: overhanging bars with end tabs, like the reference */}
           <g>
-            <rect x="72" y="66" width="256" height="30" rx="14" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="66" rx="128" ry="17" fill="url(#tm-woodTop)" />
-            <ellipse cx="200" cy="63" rx="112" ry="12" fill="#c9985077" />
+            <rect x={50} y={60} width={300} height={48} fill={PALETTE.outline} />
+            <rect x={62} y={72} width={276} height={24} fill={PALETTE.wood} />
+            <rect x={62} y={72} width={276} height={PX} fill={PALETTE.woodLight} />
+            <rect x={50} y={108} width={24} height={PX} fill={PALETTE.outline} />
+            <rect x={326} y={108} width={24} height={PX} fill={PALETTE.outline} />
           </g>
           <g>
-            <rect x="72" y="486" width="256" height="30" rx="14" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="516" rx="128" ry="17" fill="url(#tm-wood)" />
-            <ellipse cx="200" cy="486" rx="128" ry="16" fill="url(#tm-woodTop)" />
+            <rect x={50} y={468} width={300} height={48} fill={PALETTE.outline} />
+            <rect x={62} y={480} width={276} height={24} fill={PALETTE.wood} />
+            <rect x={62} y={480} width={276} height={PX} fill={PALETTE.woodLight} />
+            <rect x={50} y={456} width={24} height={PX} fill={PALETTE.outline} />
+            <rect x={326} y={456} width={24} height={PX} fill={PALETTE.outline} />
           </g>
         </svg>
       </div>
@@ -574,7 +526,7 @@ export default function Tomato({
           Flip &amp; restart
         </button>
       </div>
-      <p style={{ fontSize: 13, color: "#9c8f77" }}>
+      <p style={{ fontSize: 10, color: "#967952", lineHeight: 1.8 }}>
         The glass flips itself over when the sand runs out.
       </p>
     </div>

@@ -52,6 +52,8 @@
 
 body {
   margin: 0;
+  /* matches the outermost cream frame of the hourglass stage */
+  background: #e3d5b0;
 }
 
 #root {
