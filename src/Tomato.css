@@ -1,6 +1,63 @@
 .tomato-wrapper {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  gap: 16px;
+}
+
+.timer-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.timer-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #888;
+  background: transparent;
+  color: #ccc;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.timer-btn:hover {
+  background: rgba(180, 220, 255, 0.15);
+  color: #fff;
+}
+
+.timer-label {
+  font-size: 20px;
+  min-width: 72px;
+  text-align: center;
+  color: #ccc;
+  font-family: monospace;
+}
+
+.start-btn {
+  padding: 10px 32px;
+  border-radius: 24px;
+  border: 2px solid #888;
+  background: transparent;
+  color: #ccc;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.start-btn:hover:not(:disabled) {
+  background: rgba(180, 220, 255, 0.15);
+  color: #fff;
+  border-color: #aaa;
+}
+
+.start-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
