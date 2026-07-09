@@ -1,7 +1,1 @@
-## TODO
-- [X] Sand should fall non-flat
-- [X] the sand should fall from bottom, and empty from top
-- [X] fix the straight line of fall
-- [ ] Update the glass to look like a glass
-- [ ] there should be an alarm sound when the timer is up and hourglass should shake
-- [ ] fix the button styling, and add a pause button
+<img width="743" height="704" alt="Screenshot 2026-07-09 at 3 28 48 PM" src="https://github.com/user-attachments/assets/018672bd-acaf-4280-ad14-db222336f0dc" />
